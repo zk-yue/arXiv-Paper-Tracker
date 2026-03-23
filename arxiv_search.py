@@ -89,9 +89,16 @@ def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://a
     target_domain = domain_config.get("domain", "Robotics")
 
     if domain_enabled:
-        domain_prompt = f"""首先判断：这篇论文是否属于{target_domain}领域？
-- 如果是其他领域且与{target_domain}无关，回答"否"
-- 如果涉及{target_domain}相关内容，回答"是"
+        domain_prompt = f"""判断这篇论文的核心贡献是否属于{target_domain}领域。
+
+判断标准：
+1. 论文的核心问题、方法或应用必须直接与{target_domain}相关
+2. 仅仅使用了某些相关技术（如视觉、学习算法）但核心问题不属于{target_domain}的，应判断为"否"
+3. 纯理论、纯算法、纯数据集贡献而与{target_domain}应用无关的，应判断为"否"
+
+以Robotics为例：
+- 属于：机器人操作、抓取、导航、控制、规划、人机交互、机器人感知与决策等
+- 不属于：纯计算机视觉（图像分类、目标检测、3D重建）、纯图形学、纯NLP、纯机器学习算法等
 
 如果属于{target_domain}领域，请按以下格式输出：
 
@@ -119,7 +126,7 @@ def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://a
 否
 
 ## 原因
-（简要说明为什么不属于{target_domain}领域）
+（简要说明为什么不属于{target_domain}领域，指出其核心贡献属于哪个领域）
 
 ---
 """
