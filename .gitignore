@@ -9,6 +9,9 @@ venv/
 *.egg-info/
 *.egg
 
+# Config (contains API key)
+config.json
+
 # Results (keep directory structure)
 results/*.json
 results/*.md

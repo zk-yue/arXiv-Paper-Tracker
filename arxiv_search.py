@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 arXiv论文检索程序
-支持关键词搜索，定时执行
+支持关键词搜索，定时执行，LLM分析总结
 """
 
 import arxiv
@@ -9,6 +9,8 @@ import json
 import os
 import argparse
 import re
+import requests
+import time
 from datetime import datetime, timezone
 from typing import List, Dict, Optional
 
@@ -66,6 +68,81 @@ def find_matched_keywords(title: str, summary: str, keywords: List[str]) -> List
             matched.append(kw)
 
     return matched
+
+
+def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://api.deepseek.com", model: str = "deepseek-chat") -> Optional[Dict]:
+    """
+    使用LLM分析论文摘要
+
+    Args:
+        paper: 论文信息字典
+        api_key: API密钥
+        api_base: API地址
+        model: 模型名称
+
+    Returns:
+        分析结果字典
+    """
+    prompt = f"""请分析以下论文，用中文回答。按以下格式输出：
+
+## 一句话概括
+（用一句话概括论文核心内容）
+
+## Motivation
+（论文的研究动机，解决了什么问题）
+
+## Method
+（论文提出的方法，关键技术方案）
+
+## Result
+（实验结果和主要发现）
+
+## Conclusion
+（结论和贡献）
+
+---
+
+论文标题：{paper['title']}
+
+摘要：
+{paper['summary']}
+"""
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "model": model,
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.7,
+        "max_tokens": 1500
+    }
+
+    try:
+        response = requests.post(
+            f"{api_base}/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=60
+        )
+        response.raise_for_status()
+        result = response.json()
+        return {
+            "analysis": result["choices"][0]["message"]["content"],
+            "model": model,
+            "success": True
+        }
+    except Exception as e:
+        print(f"    LLM分析失败: {str(e)}")
+        return {
+            "analysis": None,
+            "error": str(e),
+            "success": False
+        }
 
 
 def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "submittedDate", date: Optional[str] = None) -> List[Dict]:
@@ -129,7 +206,7 @@ def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "su
     return papers
 
 
-def save_results(papers: List[Dict], keywords: List[str], search_date: str):
+def save_results(papers: List[Dict], keywords: List[str], search_date: str, config: Dict = None, enable_llm: bool = False):
     """保存搜索结果"""
     # 创建结果目录
     if not os.path.exists(RESULTS_DIR):
@@ -141,12 +218,35 @@ def save_results(papers: List[Dict], keywords: List[str], search_date: str):
     json_file = os.path.join(RESULTS_DIR, f"{timestamp}_{keywords_str}.json")
     md_file = os.path.join(RESULTS_DIR, f"{search_date}_report.md")
 
+    # LLM分析配置
+    llm_config = config.get("llm", {}) if config else {}
+    api_key = llm_config.get("api_key", os.environ.get("DEEPSEEK_API_KEY", ""))
+    api_base = llm_config.get("api_base", "https://api.deepseek.com")
+    model = llm_config.get("model", "deepseek-chat")
+
+    # 如果启用LLM分析但没有API key
+    if enable_llm and not api_key:
+        print("警告: 未配置DeepSeek API key，跳过LLM分析")
+        enable_llm = False
+
+    # 对每篇论文进行LLM分析
+    if enable_llm:
+        print("\n正在使用LLM分析论文...")
+        for i, paper in enumerate(papers, 1):
+            print(f"  分析 {i}/{len(papers)}: {paper['title'][:50]}...")
+            analysis = analyze_paper_with_llm(paper, api_key, api_base, model)
+            paper["llm_analysis"] = analysis
+            # 避免请求过快
+            if i < len(papers):
+                time.sleep(1)
+
     # 保存JSON
     with open(json_file, "w", encoding="utf-8") as f:
         json.dump({
             "search_time": datetime.now().isoformat(),
             "keywords": keywords,
             "total_results": len(papers),
+            "llm_enabled": enable_llm,
             "papers": papers
         }, f, ensure_ascii=False, indent=2)
 
@@ -157,6 +257,8 @@ def save_results(papers: List[Dict], keywords: List[str], search_date: str):
         f.write(f"**关键词**: {', '.join(keywords)}\n\n")
         f.write(f"**检索时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
         f.write(f"**结果数量**: {len(papers)} 篇\n\n")
+        if enable_llm:
+            f.write(f"**LLM分析**: 已启用 ({model})\n\n")
         f.write("---\n\n")
 
         for i, paper in enumerate(papers, 1):
@@ -167,15 +269,22 @@ def save_results(papers: List[Dict], keywords: List[str], search_date: str):
             f.write(f"- **arXiv链接**: [{paper['arxiv_url']}]({paper['arxiv_url']})\n")
             f.write(f"- **PDF链接**: [下载PDF]({paper['pdf_url']})\n")
             f.write(f"- **分类**: {', '.join(paper['categories'])}\n\n")
-            f.write(f"**摘要**:\n\n{paper['summary'][:500]}{'...' if len(paper['summary']) > 500 else ''}\n\n")
-            f.write("---\n\n")
 
-    print(f"JSON已保存: {json_file}")
+            # LLM分析结果
+            if enable_llm and paper.get("llm_analysis", {}).get("success"):
+                f.write(f"### 📝 LLM分析\n\n")
+                f.write(paper["llm_analysis"]["analysis"])
+                f.write("\n\n---\n\n")
+            else:
+                f.write(f"**摘要**:\n\n{paper['summary'][:500]}{'...' if len(paper['summary']) > 500 else ''}\n\n")
+                f.write("---\n\n")
+
+    print(f"\nJSON已保存: {json_file}")
     print(f"报告已保存: {md_file}")
     return json_file
 
 
-def run(date: Optional[str] = None):
+def run(date: Optional[str] = None, enable_llm: bool = False):
     """主运行函数"""
     if date is None:
         search_date = datetime.now().strftime("%Y-%m-%d")
@@ -191,6 +300,9 @@ def run(date: Optional[str] = None):
     print(f"\n搜索关键词: {config['keywords']}")
     print(f"日期过滤: 仅 {search_date} 发布的论文")
     print(f"最大结果数: {config['max_results']}")
+    if enable_llm:
+        llm_config = config.get("llm", {})
+        print(f"LLM分析: 已启用 ({llm_config.get('model', 'deepseek-chat')})")
 
     # 搜索论文
     print("\n正在搜索arXiv...")
@@ -222,7 +334,7 @@ def run(date: Optional[str] = None):
         print()
 
     # 保存结果
-    save_results(papers, config["keywords"], search_date)
+    save_results(papers, config["keywords"], search_date, config, enable_llm)
 
     return papers
 
@@ -231,6 +343,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="arXiv论文检索程序")
     parser.add_argument("-d", "--date", type=str, default=None,
                         help="指定检索日期 (格式: YYYY-MM-DD)，默认为当天")
+    parser.add_argument("-l", "--llm", action="store_true",
+                        help="启用LLM分析论文 (需要配置DeepSeek API)")
     args = parser.parse_args()
 
-    run(date=args.date)
+    run(date=args.date, enable_llm=args.llm)
