@@ -232,7 +232,7 @@ def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "su
     return papers
 
 
-def save_results(papers: List[Dict], keywords: List[str], search_date: str, config: Dict = None, enable_llm: bool = False):
+def save_results(papers: List[Dict], keywords: List[str], search_date: str, config: Dict = None, enable_llm: bool = False, test_mode: bool = False):
     """保存搜索结果"""
     # 创建结果目录
     if not os.path.exists(RESULTS_DIR):
@@ -258,16 +258,21 @@ def save_results(papers: List[Dict], keywords: List[str], search_date: str, conf
     # 对每篇论文进行LLM分析
     if enable_llm:
         print("\n正在使用LLM分析论文...")
-        for i, paper in enumerate(papers, 1):
-            print(f"  分析 {i}/{len(papers)}: {paper['title'][:50]}...")
+        # 测试模式只分析第一篇
+        papers_to_analyze = papers[:1] if test_mode else papers
+        for i, paper in enumerate(papers_to_analyze, 1):
+            print(f"  分析 {i}/{len(papers_to_analyze)}: {paper['title'][:50]}...")
             analysis = analyze_paper_with_llm(paper, api_key, api_base, model)
             paper["llm_analysis"] = analysis
             # 显示领域判断结果
             if analysis.get("success") and not analysis.get("is_robotics", True):
                 print(f"    ⚠️ 非机器人领域，已剔除")
             # 避免请求过快
-            if i < len(papers):
+            if i < len(papers_to_analyze):
                 time.sleep(1)
+
+        if test_mode:
+            print(f"\n[测试模式] 只分析了第一篇论文")
 
         # 过滤掉非机器人领域的论文
         original_count = len(papers)
@@ -324,7 +329,7 @@ def save_results(papers: List[Dict], keywords: List[str], search_date: str, conf
     return json_file
 
 
-def run(date: Optional[str] = None, enable_llm: bool = False):
+def run(date: Optional[str] = None, enable_llm: bool = False, test_mode: bool = False):
     """主运行函数"""
     if date is None:
         search_date = datetime.now().strftime("%Y-%m-%d")
@@ -374,7 +379,7 @@ def run(date: Optional[str] = None, enable_llm: bool = False):
         print()
 
     # 保存结果
-    save_results(papers, config["keywords"], search_date, config, enable_llm)
+    save_results(papers, config["keywords"], search_date, config, enable_llm, test_mode)
 
     return papers
 
@@ -384,7 +389,9 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--date", type=str, default=None,
                         help="指定检索日期 (格式: YYYY-MM-DD)，默认为当天")
     parser.add_argument("-l", "--llm", action="store_true",
-                        help="启用LLM分析论文 (需要配置DeepSeek API)")
+                        help="启用LLM分析论文 (需要配置API Key)")
+    parser.add_argument("-t", "--test", action="store_true",
+                        help="测试模式：只分析第一篇论文")
     args = parser.parse_args()
 
-    run(date=args.date, enable_llm=args.llm)
+    run(date=args.date, enable_llm=args.llm, test_mode=args.test)
