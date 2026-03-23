@@ -6,6 +6,7 @@
 
 <p align="center">
   <a href="#features">Features</a> •
+  <a href="#screenshots">Screenshots</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#integration-with-openclaw">OpenClaw</a> •
   <a href="#configuration">Configuration</a> •
@@ -40,6 +41,14 @@
   - Disabled by default - works with LLM analysis
 - **Markdown Reports** - Auto-generate beautiful Markdown reports
 - **Multiple LLM Support** - Support Alibaba Bailian, DeepSeek, and other OpenAI-compatible APIs
+
+## Screenshots
+
+**Feishu Daily Report (via OpenClaw):**
+
+<p align="center">
+  <img src="demo.png" alt="Feishu Daily Report Demo" width="600">
+</p>
 
 ## Quick Start
 
