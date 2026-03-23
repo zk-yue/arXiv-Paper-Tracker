@@ -6,6 +6,6 @@
   "llm": {
     "api_key": "YOUR_BAILIAN_API_KEY",
     "api_base": "https://coding.dashscope.aliyuncs.com/v1",
-    "model": "qwen-plus"
+    "model": "qwen3.5-plus"
   }
 }

@@ -248,7 +248,7 @@ def save_results(papers: List[Dict], keywords: List[str], search_date: str, conf
     llm_config = config.get("llm", {}) if config else {}
     api_key = llm_config.get("api_key", os.environ.get("BAILIAN_API_KEY", ""))
     api_base = llm_config.get("api_base", "https://coding.dashscope.aliyuncs.com/v1")
-    model = llm_config.get("model", "qwen-plus")
+    model = llm_config.get("model", "qwen3.5-plus")
 
     # 如果启用LLM分析但没有API key
     if enable_llm and not api_key:
