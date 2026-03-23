@@ -19,6 +19,8 @@
   <img src="https://img.shields.io/badge/arXiv-API-orange.svg" alt="arXiv API">
 </p>
 
+> **💡 配合 [OpenClaw](https://github.com/zk-yue/OpenClaw) 使用，实现每日论文自动推送到飞书/Discord/Telegram！**
+
 ---
 
 **English** | [中文文档](#中文文档)
@@ -303,6 +305,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 # 中文文档
+
+> **💡 配合 [OpenClaw](https://github.com/zk-yue/OpenClaw) 使用，实现每日论文自动推送到飞书/Discord/Telegram！**
 
 ## 功能特性
 
