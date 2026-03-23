@@ -105,7 +105,7 @@ def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://a
 （论文的研究动机，解决了什么问题）
 
 ## Method
-（论文提出的方法，关键技术方案）
+（论文提出的方法，包括：核心创新点、算法框架、关键技术方案）
 
 ## Result
 （实验结果和主要发现）
@@ -133,7 +133,7 @@ def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://a
 （论文的研究动机，解决了什么问题）
 
 ## Method
-（论文提出的方法，关键技术方案）
+（论文提出的方法，包括：核心创新点、算法框架、关键技术方案）
 
 ## Result
 （实验结果和主要发现）
