@@ -54,6 +54,9 @@ python arxiv_search.py -d 2026-03-17
 
 # 启用 LLM 分析（需要 API Key）
 python arxiv_search.py -d 2026-03-17 -l
+
+# 测试模式：只分析第一篇论文（省时省钱）
+python arxiv_search.py -d 2026-03-17 -l -t
 ```
 
 ## 功能
