@@ -137,37 +137,45 @@ For detailed setup instructions, see the **[OpenClaw Integration Guide](docs/ope
 ### Sample Report
 
 ```markdown
-# arXiv Paper Search Report
+# arXiv 论文检索报告
 
-**Date**: 2026-03-17
-**Keywords**: Tactile, Imitation Learning, VLA, Manipulation
-**Results**: 23 papers
+**检索日期**: 2026-03-17
+
+**关键词**: Tactile, Imitation Learning, VLA, Manipulation
+
+**结果数量**: 24 篇
+
+**LLM分析**: 已启用 (deepseek-chat)
 
 ---
 
 ## 1. TeleDex: Accessible Dexterous Teleoperation
 
-- **Matched Keywords**: Manipulation
-- **Authors**: Omar Rayyan, Maximilian Gilles, Yuchen Cui
-- **Published**: 2026-03-17
-- **arXiv**: [http://arxiv.org/abs/2603.17065v2](http://arxiv.org/abs/2603.17065v2)
+- **匹配关键词**: Manipulation
+- **作者**: Omar Rayyan, Maximilian Gilles, Yuchen Cui
+- **发布日期**: 2026-03-17
+- **arXiv链接**: [http://arxiv.org/abs/2603.17065v2](http://arxiv.org/abs/2603.17065v2)
+- **PDF链接**: [下载PDF](https://arxiv.org/pdf/2603.17065v2)
+- **分类**: cs.RO
 
-### LLM Analysis
+### 📝 LLM分析
 
-## Summary
-TeleDex is a low-cost, low-latency dexterous teleoperation system using
-ordinary smartphones, enabling rapid collection of demonstration data...
+## 一句话概括
+TeleDex是一个利用普通手机进行低成本、低延迟、无需外部追踪设备的灵巧手与机器人遥操作系统。
 
 ## Motivation
-Current dexterous teleoperation solutions require expensive specialized hardware...
+现有的灵巧遥操作方案通常依赖昂贵且复杂的专用硬件，阻碍了在真实部署环境中快速收集演示数据。
 
 ## Method
-1. Phone-based perception using built-in sensors...
-2. Two operation modes: wrist-level and finger-level...
+1. **核心创新点**：完全基于智能手机的灵巧遥操作方案，无需外部追踪设备
+2. **算法框架**：手机端实时传输6自由度手腕姿态和21自由度手部关节状态，重定向到机器人
+3. **关键技术**：支持手持模式和3D打印固定接口模式，完全开源
 
 ## Result
-Experiments demonstrate TeleDex can effectively complete complex dexterous
-manipulation tasks...
+在仿真和真实世界任务上验证有效，能收集高质量演示数据支持策略微调。
+
+## Conclusion
+TeleDex显著降低了灵巧遥操作的门槛，使部署环境中快速、低成本收集演示数据成为可能。
 ```
 
 ## Configuration
