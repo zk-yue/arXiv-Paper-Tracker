@@ -47,7 +47,7 @@
 **Feishu Daily Report (via OpenClaw):**
 
 <p align="center">
-  <img src="demo.png" alt="Feishu Daily Report Demo" width="600">
+  <img src="docs/images/demo.png" alt="Feishu Daily Report Demo" width="600">
 </p>
 
 ## Quick Start
@@ -273,7 +273,9 @@ arXiv-Paper-Tracker/
 ├── requirements.txt     # Python dependencies
 ├── install_cron.sh      # Cron job installer
 ├── docs/                # Documentation
-│   └── openclaw-integration.md  # OpenClaw integration guide
+│   ├── openclaw-integration.md  # OpenClaw integration guide
+│   └── images/          # Images
+│       └── demo.png     # Demo screenshot
 └── results/             # Output directory
     ├── *.json           # JSON results
     └── *_report.md      # Markdown reports
@@ -500,7 +502,9 @@ arXiv-Paper-Tracker/
 ├── requirements.txt     # Python 依赖
 ├── install_cron.sh      # 定时任务安装脚本
 ├── docs/                # 文档
-│   └── openclaw-integration.md  # OpenClaw 集成指南
+│   ├── openclaw-integration.md  # OpenClaw 集成指南
+│   └── images/          # 图片
+│       └── demo.png     # 演示截图
 └── results/             # 输出目录
     ├── *.json           # JSON 结果
     └── *_report.md      # Markdown 报告
