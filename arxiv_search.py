@@ -83,7 +83,16 @@ def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://a
     Returns:
         分析结果字典
     """
-    prompt = f"""请分析以下论文，用中文回答。按以下格式输出：
+    prompt = f"""请分析以下论文。
+
+首先判断：这篇论文是否属于机器人(Robotics)领域？
+- 如果是纯CV、纯NLP、大模型、医学图像、材料科学等其他领域，且与机器人无关，回答"否"
+- 如果涉及机器人操作、感知、控制、规划、学习等，回答"是"
+
+如果属于机器人领域，请按以下格式输出：
+
+## 领域判断
+是
 
 ## 一句话概括
 （用一句话概括论文核心内容）
@@ -100,9 +109,19 @@ def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://a
 ## Conclusion
 （结论和贡献）
 
+如果不属于机器人领域，只需输出：
+
+## 领域判断
+否
+
+## 原因
+（简要说明为什么不属于机器人领域）
+
 ---
 
 论文标题：{paper['title']}
+
+分类标签：{', '.join(paper.get('categories', []))}
 
 摘要：
 {paper['summary']}
@@ -131,8 +150,14 @@ def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://a
         )
         response.raise_for_status()
         result = response.json()
+        content = result["choices"][0]["message"]["content"]
+
+        # 判断是否是机器人领域
+        is_robotics = "## 领域判断\n是" in content or "## 领域判断\n 是" in content
+
         return {
-            "analysis": result["choices"][0]["message"]["content"],
+            "analysis": content,
+            "is_robotics": is_robotics,
             "model": model,
             "success": True
         }
@@ -140,6 +165,7 @@ def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://a
         print(f"    LLM分析失败: {str(e)}")
         return {
             "analysis": None,
+            "is_robotics": True,  # 分析失败时保留论文
             "error": str(e),
             "success": False
         }
@@ -236,9 +262,23 @@ def save_results(papers: List[Dict], keywords: List[str], search_date: str, conf
             print(f"  分析 {i}/{len(papers)}: {paper['title'][:50]}...")
             analysis = analyze_paper_with_llm(paper, api_key, api_base, model)
             paper["llm_analysis"] = analysis
+            # 显示领域判断结果
+            if analysis.get("success") and not analysis.get("is_robotics", True):
+                print(f"    ⚠️ 非机器人领域，已剔除")
             # 避免请求过快
             if i < len(papers):
                 time.sleep(1)
+
+        # 过滤掉非机器人领域的论文
+        original_count = len(papers)
+        papers = [p for p in papers if p.get("llm_analysis", {}).get("is_robotics", True)]
+        filtered_count = original_count - len(papers)
+        if filtered_count > 0:
+            print(f"\n已剔除 {filtered_count} 篇非机器人领域论文，保留 {len(papers)} 篇")
+
+        if len(papers) == 0:
+            print("没有机器人领域的论文，跳过报告生成")
+            return json_file
 
     # 保存JSON
     with open(json_file, "w", encoding="utf-8") as f:
