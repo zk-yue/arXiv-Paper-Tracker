@@ -8,6 +8,7 @@ import arxiv
 import json
 import os
 import argparse
+import re
 from datetime import datetime, timezone
 from typing import List, Dict, Optional
 
@@ -43,6 +44,29 @@ def save_config(config: Dict):
     """保存配置文件"""
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(config, f, ensure_ascii=False, indent=2)
+
+
+def find_matched_keywords(title: str, summary: str, keywords: List[str]) -> List[str]:
+    """
+    查找论文标题和摘要中匹配的关键词
+
+    Args:
+        title: 论文标题
+        summary: 论文摘要
+        keywords: 关键词列表
+
+    Returns:
+        匹配的关键词列表
+    """
+    matched = []
+    text = (title + " " + summary).lower()
+
+    for kw in keywords:
+        # 不区分大小写匹配
+        if kw.lower() in text:
+            matched.append(kw)
+
+    return matched
 
 
 def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "submittedDate", date: Optional[str] = None) -> List[Dict]:
@@ -86,6 +110,9 @@ def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "su
     client = arxiv.Client()
     papers = []
     for result in client.results(search):
+        # 查找匹配的关键词
+        matched_kw = find_matched_keywords(result.title, result.summary, keywords)
+
         paper = {
             "title": result.title,
             "authors": [author.name for author in result.authors],
@@ -95,7 +122,8 @@ def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "su
             "arxiv_url": result.entry_id,
             "pdf_url": result.pdf_url,
             "categories": result.categories,
-            "primary_category": result.primary_category
+            "primary_category": result.primary_category,
+            "matched_keywords": matched_kw
         }
         papers.append(paper)
 
@@ -134,6 +162,7 @@ def save_results(papers: List[Dict], keywords: List[str], search_date: str):
 
         for i, paper in enumerate(papers, 1):
             f.write(f"## {i}. {paper['title']}\n\n")
+            f.write(f"- **匹配关键词**: {', '.join(paper['matched_keywords'])}\n")
             f.write(f"- **作者**: {', '.join(paper['authors'][:5])}{'...' if len(paper['authors']) > 5 else ''}\n")
             f.write(f"- **发布日期**: {paper['published']}\n")
             f.write(f"- **arXiv链接**: [{paper['arxiv_url']}]({paper['arxiv_url']})\n")
@@ -181,7 +210,9 @@ def run(date: Optional[str] = None):
 
     # 显示结果摘要
     for i, paper in enumerate(papers, 1):
+        matched = ', '.join(paper['matched_keywords'])
         print(f"{i}. {paper['title']}")
+        print(f"   匹配关键词: {matched}")
         print(f"   作者: {', '.join(paper['authors'][:3])}{'...' if len(paper['authors']) > 3 else ''}")
         print(f"   发布日期: {paper['published']}")
         print(f"   链接: {paper['arxiv_url']}")
