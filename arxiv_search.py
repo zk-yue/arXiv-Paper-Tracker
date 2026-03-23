@@ -70,7 +70,7 @@ def find_matched_keywords(title: str, summary: str, keywords: List[str]) -> List
     return matched
 
 
-def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://api.deepseek.com", model: str = "deepseek-chat") -> Optional[Dict]:
+def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://coding.dashscope.aliyuncs.com/v1", model: str = "qwen3.5-plus") -> Optional[Dict]:
     """
     使用LLM分析论文摘要
 
@@ -143,7 +143,7 @@ def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://a
 
     try:
         response = requests.post(
-            f"{api_base}/v1/chat/completions",
+            f"{api_base}/chat/completions",
             headers=headers,
             json=data,
             timeout=60
@@ -246,13 +246,13 @@ def save_results(papers: List[Dict], keywords: List[str], search_date: str, conf
 
     # LLM分析配置
     llm_config = config.get("llm", {}) if config else {}
-    api_key = llm_config.get("api_key", os.environ.get("DEEPSEEK_API_KEY", ""))
-    api_base = llm_config.get("api_base", "https://api.deepseek.com")
-    model = llm_config.get("model", "deepseek-chat")
+    api_key = llm_config.get("api_key", os.environ.get("BAILIAN_API_KEY", ""))
+    api_base = llm_config.get("api_base", "https://coding.dashscope.aliyuncs.com/v1")
+    model = llm_config.get("model", "qwen-plus")
 
     # 如果启用LLM分析但没有API key
     if enable_llm and not api_key:
-        print("警告: 未配置DeepSeek API key，跳过LLM分析")
+        print("警告: 未配置阿里云百炼 API key，跳过LLM分析")
         enable_llm = False
 
     # 对每篇论文进行LLM分析

@@ -24,23 +24,23 @@ pip install -r requirements.txt
 cp config.example.json config.json
 ```
 
-编辑 `config.json`，填入你的 DeepSeek API Key：
+编辑 `config.json`，填入你的阿里云百炼 API Key：
 ```json
 {
   "keywords": ["Tactile", "Imitation Learning", "VLA", "Manipulation"],
   "max_results": 100,
   "sort_by": "submittedDate",
   "llm": {
-    "api_key": "YOUR_DEEPSEEK_API_KEY",
-    "api_base": "https://api.deepseek.com",
-    "model": "deepseek-chat"
+    "api_key": "YOUR_BAILIAN_API_KEY",
+    "api_base": "https://coding.dashscope.aliyuncs.com/v1",
+    "model": "qwen-plus"
   }
 }
 ```
 
 或者设置环境变量：
 ```bash
-export DEEPSEEK_API_KEY="your-api-key"
+export BAILIAN_API_KEY="your-api-key"
 ```
 
 ### 4. 运行
@@ -76,9 +76,9 @@ python arxiv_search.py -d 2026-03-17 -l
 | keywords | 搜索关键词列表 |
 | max_results | 最大返回结果数 |
 | sort_by | 排序方式：submittedDate / relevance / lastUpdatedDate |
-| llm.api_key | DeepSeek API Key |
-| llm.api_base | API 地址 |
-| llm.model | 模型名称 |
+| llm.api_key | 阿里云百炼 API Key |
+| llm.api_base | API 地址（默认：阿里云百炼） |
+| llm.model | 模型名称（如 qwen-plus, qwen-turbo, qwen-max） |
 
 ## 定时任务
 
