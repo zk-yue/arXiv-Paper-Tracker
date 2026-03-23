@@ -8,10 +8,9 @@ import arxiv
 import json
 import os
 import argparse
-import re
 import requests
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import List, Dict, Optional
 
 # 配置文件路径
@@ -70,7 +69,7 @@ def find_matched_keywords(title: str, summary: str, keywords: List[str]) -> List
     return matched
 
 
-def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://coding.dashscope.aliyuncs.com/v1", model: str = "qwen3.5-plus", domain_filter: Dict = None) -> Optional[Dict]:
+def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://api.deepseek.com", model: str = "deepseek-chat", domain_filter: Dict = None) -> Optional[Dict]:
     """
     使用LLM分析论文摘要
 
@@ -278,9 +277,9 @@ def save_results(papers: List[Dict], keywords: List[str], search_date: str, conf
 
     # LLM分析配置
     llm_config = config.get("llm", {}) if config else {}
-    api_key = llm_config.get("api_key", os.environ.get("BAILIAN_API_KEY", ""))
-    api_base = llm_config.get("api_base", "https://coding.dashscope.aliyuncs.com/v1")
-    model = llm_config.get("model", "qwen3.5-plus")
+    api_key = llm_config.get("api_key", os.environ.get("LLM_API_KEY", ""))
+    api_base = llm_config.get("api_base", "https://api.deepseek.com")
+    model = llm_config.get("model", "deepseek-chat")
     domain_filter = config.get("domain_filter", {}) if config else {}
 
     # 如果启用LLM分析但没有API key

@@ -93,7 +93,7 @@ Edit `config.json`:
 Or set environment variable:
 
 ```bash
-export BAILIAN_API_KEY="your-api-key"
+export LLM_API_KEY="your-api-key"
 ```
 
 ### Usage
@@ -207,7 +207,7 @@ Supported domains: `Robotics`, `NLP`, `Computer Vision`, `Reinforcement Learning
 ```json
 {
   "llm": {
-    "api_key": "YOUR_BAILIAN_API_KEY",
+    "api_key": "YOUR_API_KEY",
     "api_base": "https://coding.dashscope.aliyuncs.com/v1",
     "model": "qwen3.5-plus"
   }
@@ -434,7 +434,7 @@ python arxiv_search.py -d 2026-03-17 -l -t
 ```json
 {
   "llm": {
-    "api_key": "YOUR_BAILIAN_API_KEY",
+    "api_key": "YOUR_API_KEY",
     "api_base": "https://coding.dashscope.aliyuncs.com/v1",
     "model": "qwen3.5-plus"
   }

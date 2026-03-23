@@ -9,6 +9,7 @@ echo "脚本路径: $SCRIPT_DIR"
 
 # 创建cron任务（每天早上9点执行）
 # 使用conda环境运行
+# 注意：如需启用LLM分析，请在命令后添加 -l 参数
 CRON_JOB="0 9 * * * source $CONDA_PATH/etc/profile.d/conda.sh && conda activate arxiv && cd $SCRIPT_DIR && python arxiv_search.py >> $SCRIPT_DIR/cron.log 2>&1"
 
 # 检查是否已存在

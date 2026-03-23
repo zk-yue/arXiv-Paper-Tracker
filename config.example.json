@@ -2,7 +2,6 @@
   "keywords": ["Deep Learning", "Transformer", "Diffusion Model", "Large Language Model"],
   "max_results": 100,
   "sort_by": "submittedDate",
-  "save_format": "json",
   "domain_filter": {
     "enabled": false,
     "domain": "Robotics",
