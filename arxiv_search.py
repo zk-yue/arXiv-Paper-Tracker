@@ -62,7 +62,6 @@ def find_matched_keywords(title: str, summary: str, keywords: List[str]) -> List
     text = (title + " " + summary).lower()
 
     for kw in keywords:
-        # 不区分大小写匹配
         if kw.lower() in text:
             matched.append(kw)
 
@@ -202,7 +201,11 @@ def run(date: Optional[str] = None):
         date=date
     )
 
-    print(f"找到 {len(papers)} 篇论文\n")
+    print(f"找到 {len(papers)} 篇论文")
+
+    # 过滤掉没有匹配关键词的论文
+    papers = [p for p in papers if p['matched_keywords']]
+    print(f"匹配关键词的论文: {len(papers)} 篇\n")
 
     if len(papers) == 0:
         print(f"{search_date} 没有匹配的新论文。")
