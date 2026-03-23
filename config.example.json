@@ -1,11 +1,16 @@
 {
-  "keywords": ["Tactile", "Imitation Learning", "VLA", "Manipulation"],
+  "keywords": ["Deep Learning", "Transformer", "Diffusion Model", "Large Language Model"],
   "max_results": 100,
   "sort_by": "submittedDate",
   "save_format": "json",
+  "domain_filter": {
+    "enabled": false,
+    "domain": "Robotics",
+    "filter_out_non_domain": true
+  },
   "llm": {
-    "api_key": "YOUR_BAILIAN_API_KEY",
-    "api_base": "https://coding.dashscope.aliyuncs.com/v1",
-    "model": "qwen3.5-plus"
+    "api_key": "YOUR_API_KEY",
+    "api_base": "https://api.deepseek.com",
+    "model": "deepseek-chat"
   }
 }

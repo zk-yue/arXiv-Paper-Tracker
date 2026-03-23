@@ -70,7 +70,7 @@ def find_matched_keywords(title: str, summary: str, keywords: List[str]) -> List
     return matched
 
 
-def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://coding.dashscope.aliyuncs.com/v1", model: str = "qwen3.5-plus") -> Optional[Dict]:
+def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://coding.dashscope.aliyuncs.com/v1", model: str = "qwen3.5-plus", domain_filter: Dict = None) -> Optional[Dict]:
     """
     使用LLM分析论文摘要
 
@@ -79,17 +79,22 @@ def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://c
         api_key: API密钥
         api_base: API地址
         model: 模型名称
+        domain_filter: 领域过滤配置 {"enabled": bool, "domain": str, "filter_out_non_domain": bool}
 
     Returns:
         分析结果字典
     """
-    prompt = f"""请分析以下论文。
+    # 构建领域判断相关的 prompt
+    domain_config = domain_filter or {}
+    domain_enabled = domain_config.get("enabled", False)
+    target_domain = domain_config.get("domain", "Robotics")
 
-首先判断：这篇论文是否属于机器人(Robotics)领域？
-- 如果是纯CV、纯NLP、大模型、医学图像、材料科学等其他领域，且与机器人无关，回答"否"
-- 如果涉及机器人操作、感知、控制、规划、学习等，回答"是"
+    if domain_enabled:
+        domain_prompt = f"""首先判断：这篇论文是否属于{target_domain}领域？
+- 如果是其他领域且与{target_domain}无关，回答"否"
+- 如果涉及{target_domain}相关内容，回答"是"
 
-如果属于机器人领域，请按以下格式输出：
+如果属于{target_domain}领域，请按以下格式输出：
 
 ## 领域判断
 是
@@ -109,15 +114,38 @@ def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://c
 ## Conclusion
 （结论和贡献）
 
-如果不属于机器人领域，只需输出：
+如果不属于{target_domain}领域，只需输出：
 
 ## 领域判断
 否
 
 ## 原因
-（简要说明为什么不属于机器人领域）
+（简要说明为什么不属于{target_domain}领域）
 
 ---
+"""
+    else:
+        domain_prompt = f"""请分析以下论文，按以下格式输出：
+
+## 一句话概括
+（用一句话概括论文核心内容）
+
+## Motivation
+（论文的研究动机，解决了什么问题）
+
+## Method
+（论文提出的方法，关键技术方案）
+
+## Result
+（实验结果和主要发现）
+
+## Conclusion
+（结论和贡献）
+
+---
+"""
+
+    prompt = f"""{domain_prompt}
 
 论文标题：{paper['title']}
 
@@ -152,12 +180,16 @@ def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://c
         result = response.json()
         content = result["choices"][0]["message"]["content"]
 
-        # 判断是否是机器人领域
-        is_robotics = "## 领域判断\n是" in content or "## 领域判断\n 是" in content
+        # 判断是否是目标领域
+        domain_enabled = domain_filter.get("enabled", False) if domain_filter else False
+        if domain_enabled:
+            is_target_domain = "## 领域判断\n是" in content or "## 领域判断\n 是" in content
+        else:
+            is_target_domain = True  # 未启用领域过滤时，默认保留所有论文
 
         return {
             "analysis": content,
-            "is_robotics": is_robotics,
+            "is_target_domain": is_target_domain,
             "model": model,
             "success": True
         }
@@ -165,7 +197,7 @@ def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://c
         print(f"    LLM分析失败: {str(e)}")
         return {
             "analysis": None,
-            "is_robotics": True,  # 分析失败时保留论文
+            "is_target_domain": True,  # 分析失败时保留论文
             "error": str(e),
             "success": False
         }
@@ -249,24 +281,32 @@ def save_results(papers: List[Dict], keywords: List[str], search_date: str, conf
     api_key = llm_config.get("api_key", os.environ.get("BAILIAN_API_KEY", ""))
     api_base = llm_config.get("api_base", "https://coding.dashscope.aliyuncs.com/v1")
     model = llm_config.get("model", "qwen3.5-plus")
+    domain_filter = config.get("domain_filter", {}) if config else {}
 
     # 如果启用LLM分析但没有API key
     if enable_llm and not api_key:
-        print("警告: 未配置阿里云百炼 API key，跳过LLM分析")
+        print("警告: 未配置 API key，跳过LLM分析")
         enable_llm = False
+
+    # 领域过滤配置
+    domain_enabled = domain_filter.get("enabled", False)
+    target_domain = domain_filter.get("domain", "Robotics")
+    filter_out = domain_filter.get("filter_out_non_domain", True)
 
     # 对每篇论文进行LLM分析
     if enable_llm:
         print("\n正在使用LLM分析论文...")
+        if domain_enabled:
+            print(f"领域过滤: 已启用 (目标领域: {target_domain})")
         # 测试模式只分析第一篇
         papers_to_analyze = papers[:1] if test_mode else papers
         for i, paper in enumerate(papers_to_analyze, 1):
             print(f"  分析 {i}/{len(papers_to_analyze)}: {paper['title'][:50]}...")
-            analysis = analyze_paper_with_llm(paper, api_key, api_base, model)
+            analysis = analyze_paper_with_llm(paper, api_key, api_base, model, domain_filter)
             paper["llm_analysis"] = analysis
-            # 显示领域判断结果
-            if analysis.get("success") and not analysis.get("is_robotics", True):
-                print(f"    ⚠️ 非机器人领域，已剔除")
+            # 显示领域判断结果（仅在启用领域过滤时）
+            if domain_enabled and filter_out and analysis.get("success") and not analysis.get("is_target_domain", True):
+                print(f"    非目标领域，已剔除")
             # 避免请求过快
             if i < len(papers_to_analyze):
                 time.sleep(1)
@@ -274,15 +314,16 @@ def save_results(papers: List[Dict], keywords: List[str], search_date: str, conf
         if test_mode:
             print(f"\n[测试模式] 只分析了第一篇论文")
 
-        # 过滤掉非机器人领域的论文
-        original_count = len(papers)
-        papers = [p for p in papers if p.get("llm_analysis", {}).get("is_robotics", True)]
-        filtered_count = original_count - len(papers)
-        if filtered_count > 0:
-            print(f"\n已剔除 {filtered_count} 篇非机器人领域论文，保留 {len(papers)} 篇")
+        # 过滤掉非目标领域的论文（仅在启用过滤时）
+        if domain_enabled and filter_out:
+            original_count = len(papers)
+            papers = [p for p in papers if p.get("llm_analysis", {}).get("is_target_domain", True)]
+            filtered_count = original_count - len(papers)
+            if filtered_count > 0:
+                print(f"\n已剔除 {filtered_count} 篇非{target_domain}领域论文，保留 {len(papers)} 篇")
 
         if len(papers) == 0:
-            print("没有机器人领域的论文，跳过报告生成")
+            print(f"没有目标领域的论文，跳过报告生成")
             return json_file
 
     # 保存JSON
@@ -348,6 +389,9 @@ def run(date: Optional[str] = None, enable_llm: bool = False, test_mode: bool = 
     if enable_llm:
         llm_config = config.get("llm", {})
         print(f"LLM分析: 已启用 ({llm_config.get('model', 'deepseek-chat')})")
+        domain_filter = config.get("domain_filter", {})
+        if domain_filter.get("enabled", False):
+            print(f"领域过滤: 已启用 (目标领域: {domain_filter.get('domain', 'Robotics')})")
 
     # 搜索论文
     print("\n正在搜索arXiv...")
