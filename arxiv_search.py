@@ -269,7 +269,7 @@ def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "su
     return papers
 
 
-def save_results(papers: List[Dict], keywords: List[str], search_date: str, config: Dict = None, enable_llm: bool = False, test_mode: bool = False):
+def save_results(papers: List[Dict], keywords: List[str], search_date: str, config: Dict = None, enable_llm: bool = False, test_mode: bool = False, total_scanned: int = 0, matched_count: int = 0):
     """保存搜索结果"""
     # 创建结果目录
     if not os.path.exists(RESULTS_DIR):
@@ -336,7 +336,9 @@ def save_results(papers: List[Dict], keywords: List[str], search_date: str, conf
         json.dump({
             "search_time": datetime.now().isoformat(),
             "keywords": keywords,
-            "total_results": len(papers),
+            "total_scanned": total_scanned,
+            "matched_count": matched_count,
+            "final_results": len(papers),
             "llm_enabled": enable_llm,
             "papers": papers
         }, f, ensure_ascii=False, indent=2)
@@ -347,7 +349,9 @@ def save_results(papers: List[Dict], keywords: List[str], search_date: str, conf
         f.write(f"**检索日期**: {search_date}\n\n")
         f.write(f"**关键词**: {', '.join(keywords)}\n\n")
         f.write(f"**检索时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-        f.write(f"**结果数量**: {len(papers)} 篇\n\n")
+        f.write(f"**扫描总数**: {total_scanned} 篇\n\n")
+        f.write(f"**关键词匹配**: {matched_count} 篇\n\n")
+        f.write(f"**最终结果**: {len(papers)} 篇\n\n")
         if enable_llm:
             f.write(f"**LLM分析**: 已启用 ({model})\n\n")
         f.write("---\n\n")
@@ -409,12 +413,18 @@ def run(date: Optional[str] = None, enable_llm: bool = False, test_mode: bool = 
 
     print(f"找到 {len(papers)} 篇论文")
 
+    # 记录扫描总数
+    total_scanned = len(papers)
+
     # 过滤掉没有匹配关键词的论文
     papers = [p for p in papers if p['matched_keywords']]
+    matched_count = len(papers)
     print(f"匹配关键词的论文: {len(papers)} 篇\n")
 
     if len(papers) == 0:
         print(f"{search_date} 没有匹配的新论文。")
+        # 仍然保存报告，记录扫描情况
+        save_results(papers, config["keywords"], search_date, config, enable_llm, test_mode, total_scanned, matched_count)
         return papers
 
     # 显示结果摘要
@@ -428,7 +438,7 @@ def run(date: Optional[str] = None, enable_llm: bool = False, test_mode: bool = 
         print()
 
     # 保存结果
-    save_results(papers, config["keywords"], search_date, config, enable_llm, test_mode)
+    save_results(papers, config["keywords"], search_date, config, enable_llm, test_mode, total_scanned, matched_count)
 
     return papers
 
