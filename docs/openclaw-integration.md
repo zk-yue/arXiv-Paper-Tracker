@@ -2,7 +2,7 @@
 
 **适用场景：** 为研究者自动检索、分析、推送每日 arXiv 论文
 
-**最后更新：** 2026-03-23
+**最后更新：** 2026-03-24
 **配置人：** 照坤 (Cedric_Y)
 
 ---
@@ -14,6 +14,7 @@
 | **任务名称** | daily-arxiv-brief |
 | **执行时间** | 每天早上 8:00 (Asia/Shanghai) |
 | **Cron 表达式** | `0 8 * * *` |
+| **推送内容** | 前一日发布的 arXiv 论文 |
 | **推送渠道** | 飞书群聊 / Discord / 其他 |
 | **关键词** | Deep Learning, Transformer, Diffusion Model, Large Language Model |
 | **LLM 分析** | DeepSeek-chat / 阿里云百炼 |
@@ -107,7 +108,7 @@ python arxiv_search.py -d 2026-03-17 -l
     {
       "id": "0be2f12a-3274-4986-9649-c8de88aa07e9",
       "name": "daily-arxiv-brief",
-      "description": "每天早上 8 点执行本地 arXiv 检索脚本并发送简报",
+      "description": "每天早上 8 点检索并推送前一日 arXiv 论文简报",
       "enabled": true,
       "schedule": {
         "kind": "cron",
@@ -118,7 +119,7 @@ python arxiv_search.py -d 2026-03-17 -l
       "wakeMode": "now",
       "payload": {
         "kind": "agentTurn",
-        "message": "## arXiv 每日论文简报任务\n\n**步骤 1：获取当前日期**\n```bash\ncd /home/yzk/arXiv-Paper-Tracker\nTODAY=$(date +\"%Y-%m-%d\")\necho \"检索日期：$TODAY\"\n```\n\n**步骤 2：运行检索脚本（带 LLM 分析）**\n```bash\n# 激活 conda 环境\nsource /home/yzk/anaconda3/etc/profile.d/conda.sh\nconda activate arxiv\n\n# 正式执行：分析所有论文\npython arxiv_search.py -d $TODAY -l\n```\n\n**步骤 3：读取生成的报告文件**\n```bash\n# 找到最新的 report.md 文件\nREPORT_FILE=$(ls -t results/*_report.md | head -1)\necho \"报告文件：$REPORT_FILE\"\n```\n\n**步骤 4：解析 Markdown 报告，提取每篇论文的基本信息 + 一句话概括**\n\n从 report.md 中提取以下字段：\n- 论文标题\n- 匹配关键词\n- 作者\n- 发布日期\n- arXiv 链接\n- PDF 链接\n- 分类\n- **一句话概括**（来自 LLM 分析部分）\n\n**步骤 5：发送简报**\n简报格式要求：\n- 每篇论文只发送：基本信息 + 一句话概括\n- 不要发送完整的 LLM 分析（Motivation/Method/Result/Conclusion）\n- 如果用户回复\"详细讲\"或\"详情\"，再发送完整的 LLM 总结\n\n**简报模板：**\n```\n📄 [论文标题]\n🏷️ 关键词：[匹配的关键词]\n👤 作者：[作者列表]\n📅 日期：[发布日期]\n📂 分类：[分类]\n🔗 arXiv: [链接]\n📎 PDF: [下载链接]\n\n💡 一句话概括：[LLM 生成的一句话概括]\n```\n\n**步骤 6：询问用户**\n发送完所有论文简报后，询问：\n\"需要我详细讲解哪篇论文吗？回复论文编号或标题即可～\"\n\n**注意：**\n- 如果 report.md 不存在或为空，发送通知：\"今日暂无匹配的 arXiv 论文\"\n- 如果用户要求详细讲解，从原报告中提取完整的 LLM 分析部分发送",
+        "message": "## arXiv 每日论文简报任务\n\n**步骤 1：获取前一日日期**\n```bash\ncd /home/yzk/arXiv-Paper-Tracker\nYESTERDAY=$(date -d \"yesterday\" +\"%Y-%m-%d\")\necho \"检索日期：$YESTERDAY\"\n```\n\n**步骤 2：运行检索脚本（带 LLM 分析）**\n```bash\n# 激活 conda 环境\nsource /home/yzk/anaconda3/etc/profile.d/conda.sh\nconda activate arxiv\n\n# 正式执行：分析前一日发布的所有论文\npython arxiv_search.py -d $YESTERDAY -l\n```\n\n**步骤 3：读取生成的报告文件**\n```bash\n# 找到最新的 report.md 文件\nREPORT_FILE=$(ls -t results/*_report.md | head -1)\necho \"报告文件：$REPORT_FILE\"\n```\n\n**步骤 4：解析 Markdown 报告，提取每篇论文的基本信息 + 一句话概括**\n\n从 report.md 中提取以下字段：\n- 论文标题\n- 匹配关键词\n- 作者\n- 发布日期\n- arXiv 链接\n- PDF 链接\n- 分类\n- **一句话概括**（来自 LLM 分析部分）\n\n**步骤 5：发送简报**\n简报格式要求：\n- 每篇论文只发送：基本信息 + 一句话概括\n- 不要发送完整的 LLM 分析（Motivation/Method/Result/Conclusion）\n- 如果用户回复\"详细讲\"或\"详情\"，再发送完整的 LLM 总结\n\n**简报模板：**\n```\n📄 [论文标题]\n🏷️ 关键词：[匹配的关键词]\n👤 作者：[作者列表]\n📅 日期：[发布日期]\n📂 分类：[分类]\n🔗 arXiv: [链接]\n📎 PDF: [下载链接]\n\n💡 一句话概括：[LLM 生成的一句话概括]\n```\n\n**步骤 6：询问用户**\n发送完所有论文简报后，询问：\n\"需要我详细讲解哪篇论文吗？回复论文编号或标题即可～\"\n\n**注意：**\n- 如果 report.md 不存在或为空，发送通知：\"前一日暂无匹配的 arXiv 论文\"\n- 如果用户要求详细讲解，从原报告中提取完整的 LLM 分析部分发送",
         "thinking": "medium"
       },
       "delivery": {
@@ -271,7 +272,7 @@ python arxiv_search.py -d 2026-03-17
 
 1. **API 成本**：每篇论文的 LLM 分析会消耗 Token，30+ 篇约需 10-20 分钟
 2. **领域过滤**：可选功能，启用后 LLM 会自动剔除非目标领域论文
-3. **推送频率**：每天早上 8 点，即使没有论文也会发送通知
+3. **推送频率**：每天早上 8 点推送前一日论文，确保 arXiv 有充足更新时间
 4. **时区设置**：确保 `tz` 配置正确，避免推送时间错误
 
 ---
