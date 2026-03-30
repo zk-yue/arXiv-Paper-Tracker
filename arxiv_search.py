@@ -245,26 +245,41 @@ def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "su
         sort_by=sort_criteria
     )
 
-    # 使用新的Client API
-    client = arxiv.Client()
+    # 使用新的Client API，添加限流保护
+    client = arxiv.Client(
+        page_size=100,      # 每页返回更多结果，减少请求次数
+        delay_seconds=3.0,  # 请求间隔3秒，避免触发限流
+        num_retries=5       # 遇到错误时重试5次
+    )
     papers = []
-    for result in client.results(search):
-        # 查找匹配的关键词
-        matched_kw = find_matched_keywords(result.title, result.summary, keywords)
+    try:
+        for result in client.results(search):
+            # 查找匹配的关键词
+            matched_kw = find_matched_keywords(result.title, result.summary, keywords)
 
-        paper = {
-            "title": result.title,
-            "authors": [author.name for author in result.authors],
-            "summary": result.summary.replace('\n', ' ').strip(),
-            "published": result.published.strftime("%Y-%m-%d"),
-            "updated": result.updated.strftime("%Y-%m-%d"),
-            "arxiv_url": result.entry_id,
-            "pdf_url": result.pdf_url,
-            "categories": result.categories,
-            "primary_category": result.primary_category,
-            "matched_keywords": matched_kw
-        }
-        papers.append(paper)
+            paper = {
+                "title": result.title,
+                "authors": [author.name for author in result.authors],
+                "summary": result.summary.replace('\n', ' ').strip(),
+                "published": result.published.strftime("%Y-%m-%d"),
+                "updated": result.updated.strftime("%Y-%m-%d"),
+                "arxiv_url": result.entry_id,
+                "pdf_url": result.pdf_url,
+                "categories": result.categories,
+                "primary_category": result.primary_category,
+                "matched_keywords": matched_kw
+            }
+            papers.append(paper)
+    except arxiv.HTTPError as e:
+        if e.status == 429:
+            print(f"错误: arXiv API 请求频率过高")
+        else:
+            print(f"错误: arXiv API 请求失败 (HTTP {e.status})")
+        print(f"建议: 如果频繁遇到此问题，可以尝试增加 delay_seconds 参数")
+        return papers
+    except Exception as e:
+        print(f"错误: 检索论文时发生异常: {str(e)}")
+        return papers
 
     return papers
 
