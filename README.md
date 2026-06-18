@@ -29,6 +29,8 @@
 
 - **Keyword Search** - Search papers by keywords in titles and abstracts
 - **Date Filtering** - Filter papers by submission date (default: today)
+- **Date Range Extension** - Extend search range to include previous days
+- **Deduplication** - Automatically filter out already reported papers
 - **Keyword Highlighting** - Automatically highlight matched keywords for each paper
 - **LLM Analysis** - Powered by AI to analyze papers:
   - Generate structured summaries:
@@ -37,12 +39,16 @@
     - Method
     - Results
     - Conclusion
+  - **Parallel Processing** - Up to 5 workers for faster analysis
 - **Domain Filter** - Optional filter by research domain:
   - Enable to automatically filter papers by your field
   - Supports: Robotics, NLP, Computer Vision, Reinforcement Learning, etc.
   - Disabled by default - works with LLM analysis
+- **Caching** - 24-hour cache to avoid redundant API requests
+- **Rate Limiting Protection** - Automatic retry with exponential backoff
 - **Markdown Reports** - Auto-generate beautiful Markdown reports
 - **Multiple LLM Support** - Support Alibaba Bailian, DeepSeek, and other OpenAI-compatible APIs
+- **arXiv Update Checker** - Check daily arXiv update status
 
 ## Screenshots
 
@@ -116,11 +122,33 @@ python arxiv_search.py
 # Search specific date
 python arxiv_search.py -d 2026-03-17
 
+# Search with date range (previous 1 day)
+python arxiv_search.py -d 2026-03-17 --date-range 1
+
+# Search with date range (previous 3 days)
+python arxiv_search.py -d 2026-03-17 --date-range 3
+
 # Enable LLM analysis
 python arxiv_search.py -d 2026-03-17 -l
 
 # Test mode: analyze only the first paper (save time & cost)
 python arxiv_search.py -d 2026-03-17 -l -t
+
+# Disable cache
+python arxiv_search.py -d 2026-03-17 --no-cache
+
+# Custom deduplication days
+python arxiv_search.py -d 2026-03-17 --date-range 1 --dedup-days 30
+```
+
+### arXiv Update Checker
+
+```bash
+# Check past week's update status
+python check_arxiv_update.py -c cs.RO
+
+# Check specific date
+python check_arxiv_update.py -d 2026-03-17 -c cs.RO
 ```
 
 ## Integration with OpenClaw
@@ -194,7 +222,7 @@ TeleDex显著降低了灵巧遥操作的门槛，使部署环境中快速、低�
 | Field | Description |
 |-------|-------------|
 | `keywords` | List of search keywords |
-| `max_results` | Maximum number of results |
+| `max_results` | Maximum number of results (default: 500) |
 | `sort_by` | Sort order: `submittedDate` / `relevance` / `lastUpdatedDate` |
 | `domain_filter.enabled` | Enable domain filtering (default: `false`) |
 | `domain_filter.domain` | Target domain for filtering (e.g., `Robotics`, `NLP`, `Computer Vision`) |
@@ -202,6 +230,17 @@ TeleDex显著降低了灵巧遥操作的门槛，使部署环境中快速、低�
 | `llm.api_key` | API key for LLM service |
 | `llm.api_base` | API endpoint URL |
 | `llm.model` | Model name |
+
+### Command Line Options
+
+| Option | Description |
+|--------|-------------|
+| `-d, --date` | Specify date (format: YYYY-MM-DD, default: today) |
+| `-l, --llm` | Enable LLM analysis |
+| `-t, --test` | Test mode: analyze only the first paper |
+| `--no-cache` | Disable cache, force fetch from API |
+| `--date-range` | Date range extension in days (0: same day only, 1: previous 1 day) |
+| `--dedup-days` | Deduplication lookback days (default: 7) |
 
 ### Domain Filter
 
@@ -269,18 +308,20 @@ Set up daily automatic execution at 9 AM:
 
 ```
 arXiv-Paper-Tracker/
-├── arxiv_search.py      # Main program
-├── config.json          # Configuration file
-├── config.example.json  # Example configuration
-├── requirements.txt     # Python dependencies
-├── install_cron.sh      # Cron job installer
-├── docs/                # Documentation
+├── arxiv_search.py          # Main program
+├── check_arxiv_update.py    # arXiv update checker
+├── config.json              # Configuration file
+├── config.example.json      # Example configuration
+├── requirements.txt         # Python dependencies
+├── install_cron.sh          # Cron job installer
+├── cache/                   # Cache directory
+├── docs/                    # Documentation
 │   ├── openclaw-integration.md  # OpenClaw integration guide
-│   └── images/          # Images
-│       └── demo.png     # Demo screenshot
-└── results/             # Output directory
-    ├── *.json           # JSON results
-    └── *_report.md      # Markdown reports
+│   └── images/              # Images
+│       └── demo.png         # Demo screenshot
+└── results/                 # Output directory
+    ├── *.json               # JSON results
+    └── *_report.md          # Markdown reports
 ```
 
 ## Contributing
@@ -312,6 +353,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **关键词搜索** - 在标题和摘要中搜索关键词
 - **日期过滤** - 按提交日期过滤论文（默认：当天）
+- **日期范围扩展** - 扩展搜索范围到前几天
+- **自动去重** - 自动过滤已汇报过的论文
 - **关键词匹配** - 自动标注每篇论文匹配的关键词
 - **LLM 分析** - 使用 AI 智能分析论文：
   - 生成结构化摘要：
@@ -320,12 +363,16 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
     - 方法 (Method)
     - 实验结果 (Result)
     - 结论 (Conclusion)
+  - **并行处理** - 最多 5 个 worker 并行分析，提高效率
 - **领域过滤** - 可选，按研究领域筛选论文：
   - 启用后自动过滤非目标领域论文
   - 支持：Robotics、NLP、Computer Vision、Reinforcement Learning 等
   - 默认关闭，需配合 LLM 分析使用
+- **缓存机制** - 24 小时缓存，避免重复请求
+- **限流保护** - 自动重试和指数退避机制
 - **报告生成** - 自动生成 Markdown 格式报告
 - **多 LLM 支持** - 支持阿里云百炼、DeepSeek 等 OpenAI 兼容 API
+- **arXiv 更新检查** - 检查每天 arXiv 的更新状态
 
 ## 快速开始
 
@@ -391,11 +438,33 @@ python arxiv_search.py
 # 检索指定日期
 python arxiv_search.py -d 2026-03-17
 
+# 检索指定日期及前1天
+python arxiv_search.py -d 2026-03-17 --date-range 1
+
+# 检索指定日期及前3天
+python arxiv_search.py -d 2026-03-17 --date-range 3
+
 # 启用 LLM 分析（需要 API Key）
 python arxiv_search.py -d 2026-03-17 -l
 
 # 测试模式：只分析第一篇论文（省时省钱）
 python arxiv_search.py -d 2026-03-17 -l -t
+
+# 禁用缓存
+python arxiv_search.py -d 2026-03-17 --no-cache
+
+# 自定义去重回溯天数
+python arxiv_search.py -d 2026-03-17 --date-range 1 --dedup-days 30
+```
+
+### arXiv 更新检查
+
+```bash
+# 检查过去一周的更新状态
+python check_arxiv_update.py -c cs.RO
+
+# 检查指定日期
+python check_arxiv_update.py -d 2026-03-17 -c cs.RO
 ```
 
 ## 结合 OpenClaw 使用
@@ -425,7 +494,7 @@ python arxiv_search.py -d 2026-03-17 -l -t
 | 字段 | 说明 |
 |------|------|
 | `keywords` | 搜索关键词列表 |
-| `max_results` | 最大返回结果数 |
+| `max_results` | 最大返回结果数（默认：500） |
 | `sort_by` | 排序方式：`submittedDate` / `relevance` / `lastUpdatedDate` |
 | `domain_filter.enabled` | 是否启用领域过滤（默认：`false`） |
 | `domain_filter.domain` | 目标领域（如 `Robotics`、`NLP`、`Computer Vision`） |
@@ -433,6 +502,17 @@ python arxiv_search.py -d 2026-03-17 -l -t
 | `llm.api_key` | API Key |
 | `llm.api_base` | API 地址 |
 | `llm.model` | 模型名称 |
+
+### 命令行选项
+
+| 选项 | 说明 |
+|------|------|
+| `-d, --date` | 指定日期（格式：YYYY-MM-DD，默认：当天） |
+| `-l, --llm` | 启用 LLM 分析 |
+| `-t, --test` | 测试模式：只分析第一篇论文 |
+| `--no-cache` | 禁用缓存，强制从 API 获取 |
+| `--date-range` | 日期范围扩展天数（0：仅当天，1：往前扩展1天） |
+| `--dedup-days` | 去重回溯天数（默认：7） |
 
 ### 领域过滤
 
@@ -500,18 +580,20 @@ python arxiv_search.py -d 2026-03-17 -l -t
 
 ```
 arXiv-Paper-Tracker/
-├── arxiv_search.py      # 主程序
-├── config.json          # 配置文件
-├── config.example.json  # 配置文件模板
-├── requirements.txt     # Python 依赖
-├── install_cron.sh      # 定时任务安装脚本
-├── docs/                # 文档
+├── arxiv_search.py          # 主程序
+├── check_arxiv_update.py    # arXiv 更新检查工具
+├── config.json              # 配置文件
+├── config.example.json      # 配置文件模板
+├── requirements.txt         # Python 依赖
+├── install_cron.sh          # 定时任务安装脚本
+├── cache/                   # 缓存目录
+├── docs/                    # 文档
 │   ├── openclaw-integration.md  # OpenClaw 集成指南
-│   └── images/          # 图片
-│       └── demo.png     # 演示截图
-└── results/             # 输出目录
-    ├── *.json           # JSON 结果
-    └── *_report.md      # Markdown 报告
+│   └── images/              # 图片
+│       └── demo.png         # 演示截图
+└── results/                 # 输出目录
+    ├── *.json               # JSON 结果
+    └── *_report.md          # Markdown 报告
 ```
 
 ## 贡献
