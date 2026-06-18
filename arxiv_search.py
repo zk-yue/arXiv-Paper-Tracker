@@ -10,12 +10,14 @@ import os
 import argparse
 import requests
 import time
+import hashlib
 from datetime import datetime
 from typing import List, Dict, Optional
 
 # 配置文件路径
 CONFIG_FILE = "config.json"
 RESULTS_DIR = "results"
+CACHE_DIR = "cache"
 
 
 def load_config() -> Dict:
@@ -45,6 +47,47 @@ def save_config(config: Dict):
     """保存配置文件"""
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(config, f, ensure_ascii=False, indent=2)
+
+
+def get_cache_key(query: str, max_results: int, sort_by: str, date: str) -> str:
+    """生成缓存键"""
+    cache_input = f"{query}_{max_results}_{sort_by}_{date}"
+    return hashlib.md5(cache_input.encode()).hexdigest()
+
+
+def get_cached_results(cache_key: str) -> Optional[List[Dict]]:
+    """获取缓存的结果"""
+    if not os.path.exists(CACHE_DIR):
+        return None
+    
+    cache_file = os.path.join(CACHE_DIR, f"{cache_key}.json")
+    if not os.path.exists(cache_file):
+        return None
+    
+    # 检查缓存是否过期（24小时）
+    file_age = time.time() - os.path.getmtime(cache_file)
+    if file_age > 24 * 60 * 60:
+        os.remove(cache_file)
+        return None
+    
+    try:
+        with open(cache_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def save_to_cache(cache_key: str, papers: List[Dict]):
+    """保存结果到缓存"""
+    if not os.path.exists(CACHE_DIR):
+        os.makedirs(CACHE_DIR)
+    
+    cache_file = os.path.join(CACHE_DIR, f"{cache_key}.json")
+    try:
+        with open(cache_file, "w", encoding="utf-8") as f:
+            json.dump(papers, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"警告: 保存缓存失败: {str(e)}")
 
 
 def find_matched_keywords(title: str, summary: str, keywords: List[str]) -> List[str]:
@@ -208,7 +251,7 @@ def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://a
         }
 
 
-def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "submittedDate", date: Optional[str] = None) -> List[Dict]:
+def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "submittedDate", date: Optional[str] = None, use_cache: bool = True) -> List[Dict]:
     """
     搜索arXiv论文
 
@@ -217,6 +260,7 @@ def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "su
         max_results: 最大返回结果数
         sort_by: 排序方式 (submittedDate, relevance, lastUpdatedDate)
         date: 指定日期 (格式: YYYY-MM-DD)，None表示当天
+        use_cache: 是否使用缓存
 
     Returns:
         论文列表
@@ -229,6 +273,14 @@ def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "su
         date = datetime.now().strftime("%Y%m%d")
     else:
         date = date.replace("-", "")
+    
+    # 检查缓存
+    if use_cache:
+        cache_key = get_cache_key(query, max_results, sort_by, date)
+        cached_results = get_cached_results(cache_key)
+        if cached_results is not None:
+            print(f"从缓存中加载结果 ({len(cached_results)} 篇论文)")
+            return cached_results
 
     query = f"({query}) AND submittedDate:[{date} TO {date}]"
 
@@ -246,40 +298,57 @@ def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "su
     )
 
     # 使用新的Client API，添加限流保护
+    # 增加delay_seconds以避免触发arXiv API频率限制
     client = arxiv.Client(
         page_size=100,      # 每页返回更多结果，减少请求次数
-        delay_seconds=3.0,  # 请求间隔3秒，避免触发限流
-        num_retries=5       # 遇到错误时重试5次
+        delay_seconds=5.0,  # 增加到5秒，更保守地避免限流
+        num_retries=8       # 增加到8次重试，提高容错能力
     )
     papers = []
-    try:
-        for result in client.results(search):
-            # 查找匹配的关键词
-            matched_kw = find_matched_keywords(result.title, result.summary, keywords)
+    max_retries = 3  # 整个搜索过程的最大重试次数
+    retry_count = 0
+    
+    while retry_count < max_retries:
+        try:
+            for result in client.results(search):
+                # 查找匹配的关键词
+                matched_kw = find_matched_keywords(result.title, result.summary, keywords)
 
-            paper = {
-                "title": result.title,
-                "authors": [author.name for author in result.authors],
-                "summary": result.summary.replace('\n', ' ').strip(),
-                "published": result.published.strftime("%Y-%m-%d"),
-                "updated": result.updated.strftime("%Y-%m-%d"),
-                "arxiv_url": result.entry_id,
-                "pdf_url": result.pdf_url,
-                "categories": result.categories,
-                "primary_category": result.primary_category,
-                "matched_keywords": matched_kw
-            }
-            papers.append(paper)
-    except arxiv.HTTPError as e:
-        if e.status == 429:
-            print(f"错误: arXiv API 请求频率过高")
-        else:
-            print(f"错误: arXiv API 请求失败 (HTTP {e.status})")
-        print(f"建议: 如果频繁遇到此问题，可以尝试增加 delay_seconds 参数")
-        return papers
-    except Exception as e:
-        print(f"错误: 检索论文时发生异常: {str(e)}")
-        return papers
+                paper = {
+                    "title": result.title,
+                    "authors": [author.name for author in result.authors],
+                    "summary": result.summary.replace('\n', ' ').strip(),
+                    "published": result.published.strftime("%Y-%m-%d"),
+                    "updated": result.updated.strftime("%Y-%m-%d"),
+                    "arxiv_url": result.entry_id,
+                    "pdf_url": result.pdf_url,
+                    "categories": result.categories,
+                    "primary_category": result.primary_category,
+                    "matched_keywords": matched_kw
+                }
+                papers.append(paper)
+            # 成功完成，保存到缓存并跳出循环
+            if use_cache:
+                save_to_cache(cache_key, papers)
+            break
+        except arxiv.HTTPError as e:
+            if e.status == 429:
+                retry_count += 1
+                if retry_count < max_retries:
+                    # 指数退避：等待时间随重试次数增加
+                    wait_time = 10 * (2 ** (retry_count - 1))  # 10s, 20s, 40s
+                    print(f"警告: arXiv API 请求频率过高 (HTTP 429)，等待 {wait_time} 秒后重试 ({retry_count}/{max_retries})")
+                    time.sleep(wait_time)
+                else:
+                    print(f"错误: arXiv API 请求频率过高 (HTTP 429)，已达到最大重试次数")
+                    print(f"建议: 1. 增加delay_seconds参数 2. 减少关键词数量 3. 分批执行检索")
+                    return papers
+            else:
+                print(f"错误: arXiv API 请求失败 (HTTP {e.status})")
+                return papers
+        except Exception as e:
+            print(f"错误: 检索论文时发生异常: {str(e)}")
+            return papers
 
     return papers
 
@@ -394,7 +463,7 @@ def save_results(papers: List[Dict], keywords: List[str], search_date: str, conf
     return json_file
 
 
-def run(date: Optional[str] = None, enable_llm: bool = False, test_mode: bool = False):
+def run(date: Optional[str] = None, enable_llm: bool = False, test_mode: bool = False, use_cache: bool = True):
     """主运行函数"""
     if date is None:
         search_date = datetime.now().strftime("%Y-%m-%d")
@@ -423,7 +492,8 @@ def run(date: Optional[str] = None, enable_llm: bool = False, test_mode: bool = 
         keywords=config["keywords"],
         max_results=config["max_results"],
         sort_by=config["sort_by"],
-        date=date
+        date=date,
+        use_cache=use_cache
     )
 
     print(f"找到 {len(papers)} 篇论文")
@@ -466,6 +536,8 @@ if __name__ == "__main__":
                         help="启用LLM分析论文 (需要配置API Key)")
     parser.add_argument("-t", "--test", action="store_true",
                         help="测试模式：只分析第一篇论文")
+    parser.add_argument("--no-cache", action="store_true",
+                        help="禁用缓存，强制从arXiv API获取最新结果")
     args = parser.parse_args()
 
-    run(date=args.date, enable_llm=args.llm, test_mode=args.test)
+    run(date=args.date, enable_llm=args.llm, test_mode=args.test, use_cache=not args.no_cache)
