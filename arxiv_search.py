@@ -92,6 +92,71 @@ def save_to_cache(cache_key: str, papers: List[Dict]):
         print(f"警告: 保存缓存失败: {str(e)}")
 
 
+def get_reported_paper_ids(days: int = 7) -> set:
+    """
+    获取已汇报过的论文ID集合
+    
+    Args:
+        days: 回溯天数，默认7天
+        
+    Returns:
+        已汇报论文的ID集合
+    """
+    reported_ids = set()
+    
+    if not os.path.exists(RESULTS_DIR):
+        return reported_ids
+    
+    # 遍历results目录下的JSON文件
+    for filename in os.listdir(RESULTS_DIR):
+        if filename.endswith('.json'):
+            file_path = os.path.join(RESULTS_DIR, filename)
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    # 提取论文ID（从arxiv_url中提取）
+                    for paper in data.get('papers', []):
+                        arxiv_url = paper.get('arxiv_url', '')
+                        if arxiv_url:
+                            # 从URL中提取ID，如 http://arxiv.org/abs/2603.17189v1 -> 2603.17189v1
+                            paper_id = arxiv_url.split('/')[-1]
+                            reported_ids.add(paper_id)
+            except Exception:
+                # 忽略读取失败的文件
+                pass
+    
+    return reported_ids
+
+
+def filter_new_papers(papers: List[Dict], reported_ids: set) -> List[Dict]:
+    """
+    过滤掉已汇报过的论文
+    
+    Args:
+        papers: 论文列表
+        reported_ids: 已汇报论文的ID集合
+        
+    Returns:
+        过滤后的新论文列表
+    """
+    new_papers = []
+    filtered_count = 0
+    
+    for paper in papers:
+        arxiv_url = paper.get('arxiv_url', '')
+        if arxiv_url:
+            paper_id = arxiv_url.split('/')[-1]
+            if paper_id in reported_ids:
+                filtered_count += 1
+                continue
+        new_papers.append(paper)
+    
+    if filtered_count > 0:
+        print(f"去重: 过滤掉 {filtered_count} 篇已汇报论文")
+    
+    return new_papers
+
+
 def find_matched_keywords(title: str, summary: str, keywords: List[str]) -> List[str]:
     """
     查找论文标题和摘要中匹配的关键词
@@ -253,7 +318,7 @@ def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://a
         }
 
 
-def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "submittedDate", date: Optional[str] = None, use_cache: bool = True) -> List[Dict]:
+def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "submittedDate", date: Optional[str] = None, use_cache: bool = True, date_range: int = 0) -> List[Dict]:
     """
     搜索arXiv论文
 
@@ -263,28 +328,41 @@ def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "su
         sort_by: 排序方式 (submittedDate, relevance, lastUpdatedDate)
         date: 指定日期 (格式: YYYY-MM-DD)，None表示当天
         use_cache: 是否使用缓存
+        date_range: 日期范围扩展天数，0表示仅当天，1表示前后各1天
 
     Returns:
         论文列表
     """
+    from datetime import timedelta
+    
     # 构建搜索查询 - 搜索标题和摘要
     query = " OR ".join([f'(ti:"{kw}" OR abs:"{kw}")' for kw in keywords])
 
     # 添加日期过滤
     if date is None:
-        date = datetime.now().strftime("%Y%m%d")
+        base_date = datetime.now()
     else:
-        date = date.replace("-", "")
+        base_date = datetime.strptime(date, "%Y-%m-%d")
+    
+    # 计算日期范围
+    if date_range > 0:
+        start_date = (base_date - timedelta(days=date_range)).strftime("%Y%m%d")
+        end_date = base_date.strftime("%Y%m%d")
+        date_str = f"{start_date}-{end_date}"
+    else:
+        start_date = base_date.strftime("%Y%m%d")
+        end_date = start_date
+        date_str = start_date
     
     # 检查缓存
     if use_cache:
-        cache_key = get_cache_key(query, max_results, sort_by, date)
+        cache_key = get_cache_key(query, max_results, sort_by, date_str)
         cached_results = get_cached_results(cache_key)
         if cached_results is not None:
             print(f"从缓存中加载结果 ({len(cached_results)} 篇论文)")
             return cached_results
 
-    query = f"({query}) AND submittedDate:[{date} TO {date}]"
+    query = f"({query}) AND submittedDate:[{start_date} TO {end_date}]"
 
     # 设置排序方式
     sort_criteria = {
@@ -514,7 +592,7 @@ def save_results(papers: List[Dict], keywords: List[str], search_date: str, conf
     return json_file
 
 
-def run(date: Optional[str] = None, enable_llm: bool = False, test_mode: bool = False, use_cache: bool = True):
+def run(date: Optional[str] = None, enable_llm: bool = False, test_mode: bool = False, use_cache: bool = True, date_range: int = 0, dedup_days: int = 7):
     """主运行函数"""
     if date is None:
         search_date = datetime.now().strftime("%Y-%m-%d")
@@ -528,7 +606,10 @@ def run(date: Optional[str] = None, enable_llm: bool = False, test_mode: bool = 
     # 加载配置
     config = load_config()
     print(f"\n搜索关键词: {config['keywords']}")
-    print(f"日期过滤: 仅 {search_date} 发布的论文")
+    if date_range > 0:
+        print(f"日期范围: {search_date} 前 {date_range} 天")
+    else:
+        print(f"日期过滤: 仅 {search_date} 发布的论文")
     print(f"最大结果数: {config['max_results']}")
     if enable_llm:
         llm_config = config.get("llm", {})
@@ -537,6 +618,11 @@ def run(date: Optional[str] = None, enable_llm: bool = False, test_mode: bool = 
         if domain_filter.get("enabled", False):
             print(f"领域过滤: 已启用 (目标领域: {domain_filter.get('domain', 'Robotics')})")
 
+    # 获取已汇报过的论文ID
+    print(f"\n检查已汇报论文（回溯 {dedup_days} 天）...")
+    reported_ids = get_reported_paper_ids(dedup_days)
+    print(f"已汇报论文数: {len(reported_ids)}")
+
     # 搜索论文
     print("\n正在搜索arXiv...")
     papers = search_papers(
@@ -544,13 +630,17 @@ def run(date: Optional[str] = None, enable_llm: bool = False, test_mode: bool = 
         max_results=config["max_results"],
         sort_by=config["sort_by"],
         date=date,
-        use_cache=use_cache
+        use_cache=use_cache,
+        date_range=date_range
     )
 
     print(f"找到 {len(papers)} 篇论文")
 
     # 记录扫描总数
     total_scanned = len(papers)
+
+    # 过滤掉已汇报过的论文
+    papers = filter_new_papers(papers, reported_ids)
 
     # 过滤掉没有匹配关键词的论文
     papers = [p for p in papers if p['matched_keywords']]
@@ -589,6 +679,11 @@ if __name__ == "__main__":
                         help="测试模式：只分析第一篇论文")
     parser.add_argument("--no-cache", action="store_true",
                         help="禁用缓存，强制从arXiv API获取最新结果")
+    parser.add_argument("--date-range", type=int, default=0,
+                        help="日期范围扩展天数，0表示仅当天，1表示往前扩展1天 (默认: 0)")
+    parser.add_argument("--dedup-days", type=int, default=7,
+                        help="去重回溯天数，检查已汇报论文 (默认: 7)")
     args = parser.parse_args()
 
-    run(date=args.date, enable_llm=args.llm, test_mode=args.test, use_cache=not args.no_cache)
+    run(date=args.date, enable_llm=args.llm, test_mode=args.test, use_cache=not args.no_cache, 
+        date_range=args.date_range, dedup_days=args.dedup_days)
