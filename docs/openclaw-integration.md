@@ -339,6 +339,23 @@ curl -X POST "https://api.deepseek.com/v1/chat/completions" \
    - 如果是 OpenClaw 定时任务触发，检查任务执行频率
    - 确保任务不会在短时间内多次执行
 
+### 并行 LLM 分析
+
+脚本支持并行 LLM 分析，可以显著加快论文分析速度：
+
+```bash
+# 自动使用并行处理（最多 5 个 worker）
+python arxiv_search.py -d 2026-03-17 -l
+
+# 测试模式（只分析第一篇论文）
+python arxiv_search.py -d 2026-03-17 -l -t
+```
+
+**注意**：并行处理会同时调用多个 LLM API 请求，请确保：
+- API 额度充足
+- 不要设置过高的并发数（默认最多 5 个）
+- 如果遇到 API 频率限制，建议减少并发数或使用串行处理
+
 ---
 
 ## 支持

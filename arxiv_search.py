@@ -13,6 +13,8 @@ import time
 import hashlib
 from datetime import datetime
 from typing import List, Dict, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 # 配置文件路径
 CONFIG_FILE = "config.json"
@@ -389,16 +391,65 @@ def save_results(papers: List[Dict], keywords: List[str], search_date: str, conf
             print(f"领域过滤: 已启用 (目标领域: {target_domain})")
         # 测试模式只分析第一篇
         papers_to_analyze = papers[:1] if test_mode else papers
-        for i, paper in enumerate(papers_to_analyze, 1):
-            print(f"  分析 {i}/{len(papers_to_analyze)}: {paper['title'][:50]}...")
+        
+        # 并行处理LLM分析
+        max_workers = min(5, len(papers_to_analyze))  # 最多5个并行 worker
+        if max_workers > 1:
+            print(f"  并行处理: {max_workers} 个 worker")
+        
+        # 使用锁保护共享资源
+        lock = threading.Lock()
+        analyzed_count = [0]  # 使用列表以便在闭包中修改
+        
+        def analyze_single(paper_idx):
+            """分析单篇论文"""
+            idx, paper = paper_idx
             analysis = analyze_paper_with_llm(paper, api_key, api_base, model, domain_filter)
-            paper["llm_analysis"] = analysis
-            # 显示领域判断结果（仅在启用领域过滤时）
-            if domain_enabled and filter_out and analysis.get("success") and not analysis.get("is_target_domain", True):
-                print(f"    非目标领域，已剔除")
-            # 避免请求过快
-            if i < len(papers_to_analyze):
-                time.sleep(1)
+            with lock:
+                analyzed_count[0] += 1
+                print(f"  分析 {analyzed_count[0]}/{len(papers_to_analyze)}: {paper['title'][:50]}...")
+                # 显示领域判断结果（仅在启用领域过滤时）
+                if domain_enabled and filter_out and analysis.get("success") and not analysis.get("is_target_domain", True):
+                    print(f"    非目标领域，已剔除")
+            return idx, analysis
+        
+        if max_workers > 1:
+            # 并行处理
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # 提交所有任务
+                future_to_idx = {
+                    executor.submit(analyze_single, (idx, paper)): idx
+                    for idx, paper in enumerate(papers_to_analyze)
+                }
+                
+                # 收集结果
+                results = {}
+                for future in as_completed(future_to_idx):
+                    try:
+                        idx, analysis = future.result()
+                        results[idx] = analysis
+                    except Exception as e:
+                        idx = future_to_idx[future]
+                        print(f"  分析失败: {papers_to_analyze[idx]['title'][:50]}... - {str(e)}")
+                        results[idx] = {
+                            "analysis": None,
+                            "is_target_domain": True,
+                            "error": str(e),
+                            "success": False
+                        }
+                
+                # 按顺序赋值结果
+                for idx, analysis in results.items():
+                    papers_to_analyze[idx]["llm_analysis"] = analysis
+        else:
+            # 串行处理（当只有1篇论文时）
+            for idx, paper in enumerate(papers_to_analyze):
+                print(f"  分析 {idx+1}/{len(papers_to_analyze)}: {paper['title'][:50]}...")
+                analysis = analyze_paper_with_llm(paper, api_key, api_base, model, domain_filter)
+                paper["llm_analysis"] = analysis
+                # 显示领域判断结果（仅在启用领域过滤时）
+                if domain_enabled and filter_out and analysis.get("success") and not analysis.get("is_target_domain", True):
+                    print(f"    非目标领域，已剔除")
 
         if test_mode:
             print(f"\n[测试模式] 只分析了第一篇论文")
