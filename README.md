@@ -44,7 +44,6 @@
   - Enable to automatically filter papers by your field
   - Supports: Robotics, NLP, Computer Vision, Reinforcement Learning, etc.
   - Disabled by default - works with LLM analysis
-- **Caching** - 24-hour cache to avoid redundant API requests
 - **Rate Limiting Protection** - Automatic retry with exponential backoff
 - **Markdown Reports** - Auto-generate beautiful Markdown reports
 - **Multiple LLM Support** - Support Alibaba Bailian, DeepSeek, and other OpenAI-compatible APIs
@@ -134,8 +133,8 @@ python arxiv_search.py -d 2026-03-17 -l
 # Test mode: analyze only the first paper (save time & cost)
 python arxiv_search.py -d 2026-03-17 -l -t
 
-# Disable cache
-python arxiv_search.py -d 2026-03-17 --no-cache
+# Search with date range (previous 3 days)
+python arxiv_search.py -d 2026-03-17 --date-range 3
 
 # Custom deduplication days
 python arxiv_search.py -d 2026-03-17 --date-range 1 --dedup-days 30
@@ -238,7 +237,6 @@ TeleDex显著降低了灵巧遥操作的门槛，使部署环境中快速、低�
 | `-d, --date` | Specify date (format: YYYY-MM-DD, default: today) |
 | `-l, --llm` | Enable LLM analysis |
 | `-t, --test` | Test mode: analyze only the first paper |
-| `--no-cache` | Disable cache, force fetch from API |
 | `--date-range` | Date range extension in days (0: same day only, 1: previous 1 day) |
 | `--dedup-days` | Deduplication lookback days (default: 7) |
 
@@ -314,7 +312,6 @@ arXiv-Paper-Tracker/
 ├── config.example.json      # Example configuration
 ├── requirements.txt         # Python dependencies
 ├── install_cron.sh          # Cron job installer
-├── cache/                   # Cache directory
 ├── docs/                    # Documentation
 │   ├── openclaw-integration.md  # OpenClaw integration guide
 │   └── images/              # Images
@@ -368,7 +365,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
   - 启用后自动过滤非目标领域论文
   - 支持：Robotics、NLP、Computer Vision、Reinforcement Learning 等
   - 默认关闭，需配合 LLM 分析使用
-- **缓存机制** - 24 小时缓存，避免重复请求
 - **限流保护** - 自动重试和指数退避机制
 - **报告生成** - 自动生成 Markdown 格式报告
 - **多 LLM 支持** - 支持阿里云百炼、DeepSeek 等 OpenAI 兼容 API
@@ -450,9 +446,6 @@ python arxiv_search.py -d 2026-03-17 -l
 # 测试模式：只分析第一篇论文（省时省钱）
 python arxiv_search.py -d 2026-03-17 -l -t
 
-# 禁用缓存
-python arxiv_search.py -d 2026-03-17 --no-cache
-
 # 自定义去重回溯天数
 python arxiv_search.py -d 2026-03-17 --date-range 1 --dedup-days 30
 ```
@@ -510,7 +503,6 @@ python check_arxiv_update.py -d 2026-03-17 -c cs.RO
 | `-d, --date` | 指定日期（格式：YYYY-MM-DD，默认：当天） |
 | `-l, --llm` | 启用 LLM 分析 |
 | `-t, --test` | 测试模式：只分析第一篇论文 |
-| `--no-cache` | 禁用缓存，强制从 API 获取 |
 | `--date-range` | 日期范围扩展天数（0：仅当天，1：往前扩展1天） |
 | `--dedup-days` | 去重回溯天数（默认：7） |
 
@@ -586,7 +578,6 @@ arXiv-Paper-Tracker/
 ├── config.example.json      # 配置文件模板
 ├── requirements.txt         # Python 依赖
 ├── install_cron.sh          # 定时任务安装脚本
-├── cache/                   # 缓存目录
 ├── docs/                    # 文档
 │   ├── openclaw-integration.md  # OpenClaw 集成指南
 │   └── images/              # 图片
