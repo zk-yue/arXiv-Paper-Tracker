@@ -10,7 +10,6 @@ import os
 import argparse
 import requests
 import time
-import hashlib
 from datetime import datetime
 from typing import List, Dict, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -19,7 +18,6 @@ import threading
 # 配置文件路径
 CONFIG_FILE = "config.json"
 RESULTS_DIR = "results"
-CACHE_DIR = "cache"
 
 
 def load_config() -> Dict:
@@ -51,52 +49,12 @@ def save_config(config: Dict):
         json.dump(config, f, ensure_ascii=False, indent=2)
 
 
-def get_cache_key(query: str, max_results: int, sort_by: str, date: str) -> str:
-    """生成缓存键"""
-    cache_input = f"{query}_{max_results}_{sort_by}_{date}"
-    return hashlib.md5(cache_input.encode()).hexdigest()
-
-
-def get_cached_results(cache_key: str) -> Optional[List[Dict]]:
-    """获取缓存的结果"""
-    if not os.path.exists(CACHE_DIR):
-        return None
-    
-    cache_file = os.path.join(CACHE_DIR, f"{cache_key}.json")
-    if not os.path.exists(cache_file):
-        return None
-    
-    # 检查缓存是否过期（24小时）
-    file_age = time.time() - os.path.getmtime(cache_file)
-    if file_age > 24 * 60 * 60:
-        os.remove(cache_file)
-        return None
-    
-    try:
-        with open(cache_file, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return None
-
-
-def save_to_cache(cache_key: str, papers: List[Dict]):
-    """保存结果到缓存"""
-    if not os.path.exists(CACHE_DIR):
-        os.makedirs(CACHE_DIR)
-    
-    cache_file = os.path.join(CACHE_DIR, f"{cache_key}.json")
-    try:
-        with open(cache_file, "w", encoding="utf-8") as f:
-            json.dump(papers, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        print(f"警告: 保存缓存失败: {str(e)}")
-
-
-def get_reported_paper_ids(days: int = 7) -> set:
+def get_reported_paper_ids(before_date: str, days: int = 7) -> set:
     """
-    获取已汇报过的论文ID集合
+    获取指定日期之前已汇报过的论文ID集合
     
     Args:
+        before_date: 日期，格式 YYYY-MM-DD，只返回此日期之前的论文
         days: 回溯天数，默认7天
         
     Returns:
@@ -107,9 +65,23 @@ def get_reported_paper_ids(days: int = 7) -> set:
     if not os.path.exists(RESULTS_DIR):
         return reported_ids
     
+    # 解析before_date
+    before_dt = datetime.strptime(before_date, "%Y-%m-%d")
+    
     # 遍历results目录下的JSON文件
     for filename in os.listdir(RESULTS_DIR):
         if filename.endswith('.json'):
+            # 从文件名提取日期，如 20260619_035056_xxx.json
+            try:
+                file_date_str = filename[:8]
+                file_dt = datetime.strptime(file_date_str, "%Y%m%d")
+                # 只处理before_date之前的文件
+                if file_dt >= before_dt:
+                    continue
+            except ValueError:
+                # 无法解析日期，跳过
+                continue
+            
             file_path = os.path.join(RESULTS_DIR, filename)
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
@@ -318,7 +290,7 @@ def analyze_paper_with_llm(paper: Dict, api_key: str, api_base: str = "https://a
         }
 
 
-def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "submittedDate", date: Optional[str] = None, use_cache: bool = True, date_range: int = 0) -> List[Dict]:
+def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "submittedDate", date: Optional[str] = None, date_range: int = 0) -> List[Dict]:
     """
     搜索arXiv论文
 
@@ -327,8 +299,7 @@ def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "su
         max_results: 最大返回结果数
         sort_by: 排序方式 (submittedDate, relevance, lastUpdatedDate)
         date: 指定日期 (格式: YYYY-MM-DD)，None表示当天
-        use_cache: 是否使用缓存
-        date_range: 日期范围扩展天数，0表示仅当天，1表示前后各1天
+        date_range: 日期范围扩展天数，0表示仅当天，1表示往前扩展1天
 
     Returns:
         论文列表
@@ -348,19 +319,9 @@ def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "su
     if date_range > 0:
         start_date = (base_date - timedelta(days=date_range)).strftime("%Y%m%d")
         end_date = base_date.strftime("%Y%m%d")
-        date_str = f"{start_date}-{end_date}"
     else:
         start_date = base_date.strftime("%Y%m%d")
         end_date = start_date
-        date_str = start_date
-    
-    # 检查缓存
-    if use_cache:
-        cache_key = get_cache_key(query, max_results, sort_by, date_str)
-        cached_results = get_cached_results(cache_key)
-        if cached_results is not None:
-            print(f"从缓存中加载结果 ({len(cached_results)} 篇论文)")
-            return cached_results
 
     query = f"({query}) AND submittedDate:[{start_date} TO {end_date}]"
 
@@ -407,9 +368,6 @@ def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "su
                     "matched_keywords": matched_kw
                 }
                 papers.append(paper)
-            # 成功完成，保存到缓存并跳出循环
-            if use_cache:
-                save_to_cache(cache_key, papers)
             break
         except arxiv.HTTPError as e:
             if e.status == 429:
@@ -592,7 +550,7 @@ def save_results(papers: List[Dict], keywords: List[str], search_date: str, conf
     return json_file
 
 
-def run(date: Optional[str] = None, enable_llm: bool = False, test_mode: bool = False, use_cache: bool = True, date_range: int = 0, dedup_days: int = 7):
+def run(date: Optional[str] = None, enable_llm: bool = False, test_mode: bool = False, date_range: int = 0, dedup_days: int = 7):
     """主运行函数"""
     if date is None:
         search_date = datetime.now().strftime("%Y-%m-%d")
@@ -618,9 +576,9 @@ def run(date: Optional[str] = None, enable_llm: bool = False, test_mode: bool = 
         if domain_filter.get("enabled", False):
             print(f"领域过滤: 已启用 (目标领域: {domain_filter.get('domain', 'Robotics')})")
 
-    # 获取已汇报过的论文ID
-    print(f"\n检查已汇报论文（回溯 {dedup_days} 天）...")
-    reported_ids = get_reported_paper_ids(dedup_days)
+    # 获取已汇报过的论文ID（只看search_date之前的）
+    print(f"\n检查已汇报论文（{search_date} 之前）...")
+    reported_ids = get_reported_paper_ids(search_date, dedup_days)
     print(f"已汇报论文数: {len(reported_ids)}")
 
     # 搜索论文
@@ -630,7 +588,6 @@ def run(date: Optional[str] = None, enable_llm: bool = False, test_mode: bool = 
         max_results=config["max_results"],
         sort_by=config["sort_by"],
         date=date,
-        use_cache=use_cache,
         date_range=date_range
     )
 
@@ -677,13 +634,11 @@ if __name__ == "__main__":
                         help="启用LLM分析论文 (需要配置API Key)")
     parser.add_argument("-t", "--test", action="store_true",
                         help="测试模式：只分析第一篇论文")
-    parser.add_argument("--no-cache", action="store_true",
-                        help="禁用缓存，强制从arXiv API获取最新结果")
     parser.add_argument("--date-range", type=int, default=0,
                         help="日期范围扩展天数，0表示仅当天，1表示往前扩展1天 (默认: 0)")
     parser.add_argument("--dedup-days", type=int, default=7,
                         help="去重回溯天数，检查已汇报论文 (默认: 7)")
     args = parser.parse_args()
 
-    run(date=args.date, enable_llm=args.llm, test_mode=args.test, use_cache=not args.no_cache, 
+    run(date=args.date, enable_llm=args.llm, test_mode=args.test, 
         date_range=args.date_range, dedup_days=args.dedup_days)
