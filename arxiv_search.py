@@ -10,7 +10,7 @@ import os
 import argparse
 import requests
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
@@ -65,18 +65,19 @@ def get_reported_paper_ids(before_date: str, days: int = 7) -> set:
     if not os.path.exists(RESULTS_DIR):
         return reported_ids
     
-    # 解析before_date
+    # 解析before_date，计算回溯截止日期
     before_dt = datetime.strptime(before_date, "%Y-%m-%d")
+    cutoff_dt = before_dt - timedelta(days=days)
     
     # 遍历results目录下的JSON文件
     for filename in os.listdir(RESULTS_DIR):
         if filename.endswith('.json'):
-            # 从文件名提取日期，如 20260619_035056_xxx.json
+            # 从文件名提取日期，如 20260617_xxx.json
             try:
                 file_date_str = filename[:8]
                 file_dt = datetime.strptime(file_date_str, "%Y%m%d")
-                # 只处理before_date之前的文件
-                if file_dt >= before_dt:
+                # 只处理 [cutoff_dt, before_dt) 范围内的文件
+                if file_dt < cutoff_dt or file_dt >= before_dt:
                     continue
             except ValueError:
                 # 无法解析日期，跳过
@@ -304,8 +305,6 @@ def search_papers(keywords: List[str], max_results: int = 10, sort_by: str = "su
     Returns:
         论文列表
     """
-    from datetime import timedelta
-    
     # 构建搜索查询 - 搜索标题和摘要
     query = " OR ".join([f'(ti:"{kw}" OR abs:"{kw}")' for kw in keywords])
 
@@ -397,10 +396,10 @@ def save_results(papers: List[Dict], keywords: List[str], search_date: str, conf
     if not os.path.exists(RESULTS_DIR):
         os.makedirs(RESULTS_DIR)
 
-    # 生成文件名
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # 生成文件名（使用检索日期）
+    date_str = search_date.replace("-", "")
     keywords_str = "_".join(keywords[:3]).replace(" ", "_")[:50]
-    json_file = os.path.join(RESULTS_DIR, f"{timestamp}_{keywords_str}.json")
+    json_file = os.path.join(RESULTS_DIR, f"{date_str}_{keywords_str}.json")
     md_file = os.path.join(RESULTS_DIR, f"{search_date}_report.md")
 
     # LLM分析配置
